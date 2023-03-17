@@ -89,13 +89,14 @@ float DWA::_dist(vector<float> state, vector<Vector2d> obstacle) {
         float distance = (obs-location).norm();
         min_dist = distance>min_dist?min_dist:distance;
     }
-    float gap = 0;
-    float mx = min(50- gap - state[0]>0? 50 - gap - state[0]:0, state[0]-gap>0? state[0] - gap:0);
-    float my = min(50- gap - state[1]>0? 50 - gap - state[1]:0, state[1]-gap>0? state[1] - gap:0);
-    float md = min(mx, my);
+    //float gap = 2.0;
+    //float mx = min(50- gap - state[0]>0? 50 - gap - state[0]:0, state[0]-gap>0? state[0] - gap:0);
+    //float my = min(50- gap - state[1]>0? 50 - gap - state[1]:0, state[1]-gap>0? state[1] - gap:0);
+    //float md = min(mx, my);
 
-    min_dist = min_dist > md ? md : min_dist;
+    //min_dist = min_dist > md ? md : min_dist;
 
+    //if(min_dist)
     return min_dist;
 }
 

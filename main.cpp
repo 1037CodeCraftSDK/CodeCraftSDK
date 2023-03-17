@@ -20,7 +20,7 @@ const float radius_robot = 2.0; //与机器人碰撞半径
 const float radius_wall = 0.53; //与墙壁碰撞半径
 const int maxK = 50;         //工作台最大数量
 float dt = 0.02;            //采样时间
-float predict_time = 0.1;   //轨迹推算时间长度
+float predict_time = 0.12;   //轨迹推算时间长度
 float v_sample = 0.1, w_sample = 0.5 * PI / 180; //采样分辨率
 float alpha = 3.0,bta = 1.0, gamma = 1.0; //轨迹评价函数系数
 //     float radius = 1.0; // 用于判断是否到达目标点
@@ -69,14 +69,42 @@ public:
     int remainProductionTime;   //剩余生产时间
     int materialState;          //原材料状态
     bool productionState;       //产品格状态
-    bool choosed = false;               //是否被机器人选中
-   // int buyPrior = 0;           //买的产品价值估计
-   // int sellPrior = 0;          //卖的价值估计
+    bool choosed = false;       //是否被机器人选中(机器人去工作台获取产品)
+    int materialSendState = 0;  //是否被机器人选中(机器人去工作台卖原料)
+   // int buyPrior = 0;         //买的产品价值估计
+   // int sellPrior = 0;        //卖的价值估计
 
+
+    int get_material_num()
+    {
+        int state = materialSendState|materialState;
+        int cnt = 0;
+        while (state)
+        {
+            cnt += state&1;
+            state>>=1;
+        }
+        return cnt;
+   }
    /*
    * 
    * (x1,y1)为机器人坐标
    */
+    int get_type_value(int type)
+    {
+        if (type <= 3)
+        {
+            return 1;
+        }
+        else if (type <= 6)
+        {
+            return 10;
+        }
+        else if (type <= 7)
+        {
+            return 1000;
+        }
+    }
     int getBuyPrior(float x1,float y1)
     {
         if (choosed)
@@ -94,14 +122,14 @@ public:
             }
             else if (dis / v_max >= float(remainProductionTime)*0.02)
             {
-                return 1000 * int((type - 1) / 3+1) - 10 * dis +10000*material_need[type];
+                return get_type_value(type) - 10 * dis +100*material_need[type];
             }
             else
             {
-                return 1000 * int((type - 1) / 3+1) - 10 * dis+100*(dis/v_max-remainProductionTime) +10000 * material_need[type];
+                return get_type_value(type) - 10 * dis+100*(dis/v_max-remainProductionTime) +100 * material_need[type];
             }
         }
-        int prior = 1000 * int((type - 1) / 3+1) - 10 * dis + 10000 * material_need[type];
+        int prior = get_type_value(type) - 10 * dis + 100 * material_need[type];
         return prior;
     }
     int getSellPrior(float x1,float y1,int pType)
@@ -109,11 +137,11 @@ public:
         if (mp[type][pType])
         {
             int prior = 0;
-            if (materialState & (1 << pType))
+            if ((materialState|materialSendState) & (1 << pType))
             {
                 return 0;
             }
-            else return sqrt((x - x1) * (x - x1) + (y - y1) * (y - y1));
+            else return 100-sqrt((x - x1) * (x - x1) + (y - y1) * (y - y1)) + 100*get_material_num();
         }
         return 0;
     }
@@ -216,6 +244,8 @@ int main() {
             cin>>workBenchArr[i].type>>workBenchArr[i].x>>workBenchArr[i].y \
             >> workBenchArr[i].remainProductionTime>>workBenchArr[i].materialState>>workBenchArr[i].productionState;
             //workBenchArr[i].id = i;
+
+            workBenchArr[i].materialSendState = 0;
             for (int j = 1; j < 8; j++)
             {
                 if (mp[workBenchArr[i].type][j])
@@ -291,7 +321,8 @@ int main() {
                 Vector2d goal(workBenchArr[robotArr[robotId].targetBuyId].x, workBenchArr[robotArr[robotId].targetBuyId].y); //目标点
 
                 //vector<Vector2d>obstacle = obstacleBench;//障碍物位置
-                vector<Vector2d>obstacle = {goal};
+                //vector<Vector2d>obstacle = {goal};
+                vector<Vector2d>obstacle;
                 for (int i = 0; i < 4; i++)
                 {
                     if(i!=robotId)
@@ -311,9 +342,9 @@ int main() {
                 printf("forward %d %f\n", robotId, state[3]);
                 printf("rotate %d %f\n", robotId, state[4]);
 
-                //char buf[1024] = { 0 };
-                //sprintf_s(buf, 1024, "frameId %d id %d forward %f rotate %f gx %f gy %f", frameID,robotId, state[3],state[4], workBenchArr[robotArr[robotId].targetBuyId].x, workBenchArr[robotArr[robotId].targetBuyId].y);
-                //WriteString(buf);
+                char buf[1024] = { 0 };
+                sprintf_s(buf, 1024, "frameId %d id %d targetId %d velocity %f", frameID,robotId, robotArr[robotId].targetBuyId, robotArr[robotId].getVelociry());
+                WriteString(buf);
                 if (robotArr[robotId].workBenchId == robotArr[robotId].targetBuyId && workBenchArr[robotArr[robotId].workBenchId].productionState)
                 {
                     printf("buy %d\n", robotId);
@@ -323,14 +354,17 @@ int main() {
             }
             else
             {
-                if (robotArr[robotId].targetSellId == -1 || (workBenchArr[robotArr[robotId].targetSellId].materialState&(1<< robotArr[robotId].goodType)))
+            
+                    //|| (workBenchArr[robotArr[robotId].targetSellId].materialState&(1<< robotArr[robotId].goodType))
+                if (robotArr[robotId].targetSellId == -1 || (workBenchArr[robotArr[robotId].targetSellId].materialState | \
+                workBenchArr[robotArr[robotId].targetSellId].materialSendState)& (1 << robotArr[robotId].goodType))
                 {
                     int maxValue = 0;
                     int maxIndex = -1;
-                    if(robotArr[robotId].targetSellId)
+                   // if(robotArr[robotId].targetSellId)
                     for (int i = 0; i < workBenchLength; i++)
                     {
-                        if (workBenchArr[i].choosed)continue;
+                        //if (workBenchArr[i].choosed)continue;
                         //buyArr[i].id = i;
                         int tempValue = workBenchArr[i].getSellPrior(robotArr[robotId].x, robotArr[robotId].y, robotArr[robotId].goodType);
                         if (tempValue > maxValue)
@@ -340,18 +374,22 @@ int main() {
                         }
                     }
                     if (maxIndex == -1)continue;
-                    workBenchArr[maxIndex].choosed = true;
+                    //workBenchArr[maxIndex].choosed = true;
+                    //workBenchArr[maxIndex].materialSendState |= (1<< robotArr[robotId].goodType);
                     robotArr[robotId].targetSellId = maxIndex;
                 }
-
-
+                workBenchArr[robotArr[robotId].targetSellId].materialSendState |= (1 << robotArr[robotId].goodType);
+            /*    char buf[1024] = { 0 };
+                sprintf_s(buf, 1024, "frameId %d robotId %d targetId %d materialSendState %d goodType %d", frameID,robotId, robotArr[robotId].targetSellId, workBenchArr[robotArr[robotId].targetSellId].materialSendState, robotArr[robotId].goodType);
+                WriteString(buf);*/
 
                 vector<float> state = { robotArr[robotId].x,robotArr[robotId].y,robotArr[robotId].forward,robotArr[robotId].getVelociry(),robotArr[robotId].angularVelocity };
                 Vector2d goal(workBenchArr[robotArr[robotId].targetSellId].x, workBenchArr[robotArr[robotId].targetSellId].y); //目标点
 
                 
                 //vector<Vector2d>obstacle = obstacleBench;//障碍物位置
-                vector<Vector2d>obstacle = {goal};
+                //vector<Vector2d>obstacle = {goal};
+                vector<Vector2d>obstacle;
                 for (int i = 0; i < 4; i++)
                 {
                     if (i != robotId)
@@ -380,7 +418,7 @@ int main() {
                 if (robotArr[robotId].workBenchId == robotArr[robotId].targetSellId && (workBenchArr[robotArr[robotId].workBenchId].materialState&(1<< robotArr[robotId].goodType))==0)
                 {
                     printf("sell %d\n", robotId);
-                    workBenchArr[robotArr[robotId].targetSellId].choosed = false;
+                   //workBenchArr[robotArr[robotId].targetSellId].choosed = false;
                     robotArr[robotId].targetSellId = -1;
                 }
             }
