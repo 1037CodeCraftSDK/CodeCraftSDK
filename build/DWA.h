@@ -48,6 +48,7 @@ private:
     vector<float> calVelLimit();
     vector<float> calAccelLimit(float v, float w);
     vector<float> calObstacleLimit(vector<float> state, vector<Vector2d> obstacle);
+    vector<float> DWA::calWorkBenchLimit(vector<float> state, Vector2d workBnech);
     vector<float> calDynamicWindowVel(float v, float w, vector<float> state, vector<Vector2d> obstacle);
     float _dist(vector<float> state, vector<Vector2d>obstacle);
     vector<vector<float>> trajectoryPredict(vector<float> state, float v, float w);
@@ -56,7 +57,7 @@ private:
     float _heading(vector<vector<float>> trajectory, Vector2d goal);
     float _velocity(vector<vector<float>> trajectory);
     float _distance(vector<vector<float>> trajectory, vector<Vector2d> obstacle);
-
+    int _distance_wall(vector<vector<float>> trajectory);
 
 public:
     DWA(float dt, float vMin, float vMax, float wMin, float wMax, float predictTime, float aVmax, float aWmax,
